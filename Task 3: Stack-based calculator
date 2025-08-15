@@ -1,0 +1,917 @@
+@ task 3: stack-based calculator
+calculator_stack: .space 16, 0x0    // define a stack for numbers
+
+// define any variables/memory space you need here
+// your code starts here
+
+//defining my varibales for easier readibility 
+
+.equ OUTPUT_LED, 0xFF200000
+//addr led contr
+.equ PUSHBUTTON_IN, 0xFF200050
+//ADDRE Pb rg
+.equ PUSHBUTTON_EDGE, 0xFF20005C
+//addr pb edgcap reg
+.equ SWITCH_INPUT, 0xFF200040
+//addr switch data reg
+.equ HEX_DISP, 0xFF200020
+//addr hex display
+
+
+
+
+
+
+//constant variables 
+.equ HEX_NUM,0x00 
+.equ HEX0_NUM,0x01
+.equ HEX1_NUM,0x02
+.equ HEX2_NUM,0x04
+.equ HEX3_NUM,0x08
+//all in da code
+.equ HEX4_NUM,0x10
+.equ HEX5_NUM,0x20
+
+.equ HEX1_OFFSET,0x01  
+//OFFS for HEX1
+.equ HEX2_OFFSET,0x02  
+//OFFS for HEX2
+.equ HEX3_OFFSET,0x03  
+//OFFS for HEX3
+.equ HEX4_OFFSET,0x10  
+//OFFS for HEX4 //16
+.equ HEX5_OFFSET,0x11  
+//OFFS for HEX5 (17 in dec)
+
+.equ ERROR_UNDERFLOW, 0xE0  //Err code for underflow
+.equ ERROR_OVERFLOW,  0xE1  //Errcode for overflow
+
+.equ HEX0DISP, 0x3F    //7-seg encoding for0
+//USEDONCE
+.equ ERROR_SYM,  0x71    //7-seg encoding for error E
+
+.equ MAX_VALID_DIGIT, 15 //to make easeir               
+
+.equ FULL_DISPLAY, 0b111111
+
+HEX_TABLE:
+    .byte 0x3F, 0x06, 0x5B, 0x4F  //refer w TA
+    .byte 0x66, 0x6D, 0x7D, 0x07  
+    .byte 0x7F, 0x6F, 0x77, 0x7C 
+	//can format flexible?
+    .byte 0x39, 0x5E, 0x79, 0x71  
+    .byte 0x40, 0x00, 0x00, 0x00  
+
+STCK_PTR: .word calculator_stack  //initi SP to  start of the calc stack
+
+
+
+// your code ends here
+
+.global _start
+_start:
+    MOV R0, #0
+    
+// your code starts here
+
+//DONT CHANGE ABOVE THIS CODE 
+BL PB_clear_edgecp_ASM  
+MOV R0,#FULL_DISPLAY
+BL HEX_clear_ASM
+LOOPM:
+    //PUSH {LR}
+    BL read_PB_edgecp_ASM         
+	//read curr state of switch
+    BL SHOWING_ON_LED 
+	
+	
+	
+	//update LEDs to SW STATE
+    //BL PB_clear_edgecp_ASM       //clearing PB state
+   // POP {LR}
+
+    MOV R0,#HEX0_NUM  
+	//if PB0is pressed
+	//pushing
+   // PUSH {LR}
+    BL PB_edgecp_is_pressed_ASM
+    //POP {LR} 
+	//see if need 
+    CMP R0,#1                   
+    BEQ PUSHING              
+
+    //addition 
+	
+	MOV R0,#HEX1_NUM                 
+	// if PB1 s pressed
+   // PUSH {LR}
+    
+	BL PB_edgecp_is_pressed_ASM
+   // POP {LR}
+   
+    CMP R0,#1
+   
+   BEQ ADDITION               
+
+    //subtraction
+	MOV R0,#HEX2_NUM  
+	
+	
+	//if PB2 pressed
+	
+   // PUSH {LR}
+   
+   BL PB_edgecp_is_pressed_ASM
+   // POP {LR}
+    CMP R0, #1
+    BEQ SUBTRACTION               
+
+    //resettingggggggg -----------come back to fix
+	
+	
+	
+	MOV R0,#HEX3_NUM                 
+	//if PB3 pressed
+   // PUSH {LR}
+  
+  BL PB_edgecp_is_pressed_ASM
+   // POP {LR}
+    CMP R0,#1
+    BEQ RESETTING             
+  
+  B LOOPM  //ensure loop                 
+RESETTING:
+    //PUSH {LR}
+    BL CALC_RESET
+	
+	//allow for rsetting
+    
+	
+	
+	
+	
+	BL PB_clear_edgecp_ASM 
+	//clear edgace 
+	//POP {LR}
+    B LOOPM
+PUSHING:
+    //PUSH {LR}
+    BL read_PB_edgecp_ASM          
+	//get switches number 
+    BL PUSH_ONTO_STACK             
+	//what name suggests 
+    BL PB_clear_edgecp_ASM ///having issues 
+	//cleans state of button 
+    ////POP {LR}
+    B LOOPM
+SUBTRACTION:
+    //PUSH {LR}
+    BL STACK_SUBTRACTION  //!!!!!!!!!!!!!!!!!!!
+	//HAVE A FLAG IN THE MEMORY 
+	//CMP FLAG W 1 
+	//IF FLAG =1 SKIP DISPLAY	(DONT DISPLAY) BY ADDING CONDITION TO BL 				// Perform subtraction
+	BL SHOWING_ANSWER         // EQ NEQ
+	//reset the flag to 0 - E0
+	
+    BL PB_clear_edgecp_ASM 
+	//POP {LR}
+    B LOOPM //need to do again
+ADDITION:
+    //PUSH {LR}
+    BL STACK_ADDITION
+	
+	
+	// Perform addition
+	
+	//HAVE A FLAG IN THE MEMORY  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//CMP FLAG W 1 
+	//IF FLAG =1 SKIP DISPLAY	(DONT DISPLAY) BY ADDING CONDITION TO BL 		
+    BL SHOWING_ANSWER  
+	//reset the flag to 0 - E0
+	
+	
+	BL PB_clear_edgecp_ASM // Display result on HEX
+    //POP {LR}
+    B LOOPM
+
+
+//stackkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+
+read_PB_edgecp_ASM: //CHANGED
+    PUSH {LR}
+    LDR R0,=SWITCH_INPUT     //r0 getss address first
+    LDR R1,[R0]              //putting swithc val into R1 to get value 
+    SXTB R0,R1               //sign extension
+	//see again other variants 
+    POP {LR}
+    BX LR
+
+POPPING://REGGGGGGCHHH
+    PUSH {R5-R8, LR}   //keep track of temp reg!!!!!!!!!!!!!!
+	LDR R6,=STCK_PTR  
+	//addr STP
+	
+	
+	LDR R8,=calculator_stack
+	//base addr of stacl
+	LDR R7,[R6]   //currstck pnter              
+	
+	
+	CMP R7,R8    //comp w base case and sp               
+	
+	BLE FOR_UNDERFLOW //then underflow duuhh         
+	MOV R5,#1        //early imm val
+	
+	//watch video again 				//does it change
+    SUB R7,R7,R5    //point to prev value               
+	
+	
+	//update SP back 
+	STR R7,[R6] //seee other variants 
+	//last stored val from stack to R0 ---see again 
+	LDRB R0,[R7]  //make sure its byte               
+	SXTB R0,R0  
+	//sugn extends in RO
+	POP {R5-R8, LR}          
+	BX LR//make sure return to caller        
+
+
+
+
+FOR_UNDERFLOW:///ODRER N VAR
+    PUSH {LR} //awlasy save return
+   
+   
+   
+   
+   
+   
+   MOV R0,#ERROR_UNDERFLOW    //loadinf error code
+	//make sure matches correctly
+    BL ERROR         
+    POP {LR}//pop corr
+	
+	
+	
+	//make sure consistent throughout 
+	POP {R4, LR}
+    BX LR//return to caller
+
+FOR_OVERFLOW:///ODRER N VAR
+    PUSH {LR}					//!!!!!!!!!!!!!!!!!!!!!!!!!!
+   	
+	MOV R0,#ERROR_OVERFLOW                
+   
+   
+   BL ERROR    ///create another sub routines like  ERROR but for E1					//dsiplauy_error currently is only set for e0, need to set it for e1
+    POP {LR}
+   
+   
+   BX LR //common sense 
+PUSH_ONTO_STACK:
+
+
+    PUSH {R5-R8, LR}//keep consistent temp var
+   
+   	LDR R6,=STCK_PTR 
+	//addr of SP
+	
+	
+	LDR R8,=calculator_stack + 16 //load end of stack memory
+	//need 16 to get limit - cuz hexa 
+    LDR R7,[R6]  
+	
+	
+	//load stack pnter
+    CMP R7,R8    //compare w limit                
+    BGE FOR_OVERFLOW      
+	
+	
+    STRB R0,[R7] 
+	//r0 position byte get stored into current poisiton
+    MOV R5,#1               //incrementin it 
+    ADD R7,R7,R5  
+	
+	
+    STR R7,[R6] 
+	//updated SP goes back to memeory 
+	
+	
+    POP {R5-R8, LR} //make sure consistent   
+	//clobbered reg error!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    BX LR
+
+
+//mathhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
+
+SHOWING_ON_LED:
+    PUSH {LR}
+    LDR R1,=OUTPUT_LED  //addre of output reg
+	//make sure consitsent 
+    STR R0,[R1]   //store val in r0 to led reg              
+    POP {LR} //missed it last time 
+    BX LR
+	
+CALC_RESET://ORDER
+    PUSH {LR}
+	
+	MOV R0,#0 //redundant? maybe just keep in case
+	MOV R0,#FULL_DISPLAY 
+	
+	
+	//overwrite prev mov???
+    LDR R1,=STCK_PTR     //add of stack pinter
+	//referer to above 
+	
+	
+	
+    LDR R2,=calculator_stack//base add of stack mem  
+    STR R2,[R1,#0]         //stack pointer goes back to start of stack        
+    
+    BL HEX_clear_ASM     //hex disp sucessfully cleared       
+    BL SHOWING_ON_LED          //LED output reset 
+    POP {LR}                   //rets LR before returning
+    BX LR  
+
+
+STACK_SUBTRACTION:
+    PUSH {R7,LR}  //r7 to make clear its a temp reg  
+	
+    LDR R1,=STCK_PTR       //stck pnyer addre
+	
+	
+	
+    LDR R2,[R1]              //curr stackp value   
+    LDR R3,=calculator_stack + 2  
+	
+	
+	
+	//ask TA
+	//min stack depth for sub
+    CMP R2,R3   
+	//min 2 things inside
+    BLT FOR_UNDERFLOW   //if less than 2
+	
+    BL POPPING         //off w first opp
+    MOV R7,R0   //
+	//store temp
+    BL POPPING //off w 2nd opp 
+	//ADD R0, R7, #-1 * R0
+	//RSB R0, R0, R2 for practise
+	
+	
+    SUB R0,R7,R0   //use this for easier         
+    BL PUSH_ONTO_STACK  
+	
+	//at the end 
+    POP {R7, LR}             //restore reg
+    BX LR  
+
+
+STACK_ADDITION:
+    PUSH {R7, LR}            //make consistent 
+	
+    LDR R1,=STCK_PTR //addre stp      
+   
+   
+   LDR R2,[R1]     //save that va;=l 
+	
+	
+	
+    LDR R3,=calculator_stack + 2    //min depth
+    CMP R2,R3
+	
+	
+	//SUBS R4, R2, R3 -look at how to make exotic comands 
+	//BMI FOR_UNDERFLOW //try diff methods 
+    BLT FOR_UNDERFLOW   
+	
+    BL POPPING         // off w first opp
+    MOV R7,R0     
+	
+	
+	//stored in R7
+    BL POPPING // Pop second operand
+	//SUB R0,R0,#-1 *R7	for practce ---look for exam
+    ADD R0,R7,R0 
+	// addaaaaa
+	
+	
+	
+    //NEG R7,R7     // makin R7 negative
+	//SUB R0,R0,R7 //look over to diversify
+	BL PUSH_ONTO_STACK        // sum onto stack
+    POP {R7, LR}             
+	// R4 and LR
+    BX LR                    // return                   
+PEEK_TOP:
+    PUSH {R6-R8, LR}       //again make conssssssisssstent 
+    LDR R7,=STCK_PTR   //addr of stack pointer
+    LDR R8,[R7]   
+	//current spointer val
+    LDR R3,=calculator_stack  
+	
+	//base address
+	
+    CMP R8,R3        
+	
+	// see if stack is empty
+	
+    //BLE FOR_UNDERFLOW     // If empty, show error
+
+    MOV R6,#1   
+	// IMMVAL 1 into R5
+	SUB R8,R8,R6  
+	
+	
+	
+	//try this example:LDR R5, =1 
+	//RSB R8, R8, #1 
+	// peek at last byte stored
+    LDRSB R0, [R8]           //(not full word
+
+    POP {R6-R8, LR}        //
+    BX LR                   //return     // return
+
+SHOWING_ANSWER:
+    PUSH {LR}
+    BL PEEK_TOP        //obvious
+    BL SIGN_MAG 
+    //MOV R1, R0               //  result to R1 hx displ data
+    //MOV R0, #0x00   
+	
+	
+	
+	
+	//start at HEX0 display dig that comes first 
+    //BL HEX_WRITE_ASM  
+	 BL DECIMALCONVERT //gottem
+    POP {LR}
+    BX LR
+
+
+///THISSSS
+SIGN_MAG:
+    PUSH {R4, LR}
+	//make sure consistnt 
+    CMP R0,#0
+    BGE CLEAR_HEX4  
+	
+	
+	// positive = clear HEX4
+    NEG R4,R0         //negative number to positive magnitude
+	//makle sure right syntax 
+    ////PUSH {R7, R8, LR}       //
+    //LDR R7,=STCK_PTR   //address of stack pointer
+    
+	
+	//LDR R8,[R7]            //currstack pointer value
+    //LDR R3,=calculator_stack 
+    MOV R1,#HEX4_NUM     //pos of HEX 4
+    MOV R0,#HEX4_OFFSET        // FOR NEG SIGN MAKE SURE 
+    //ASK TA about this ...refer to slidea 
+	BL HEX_WRITE_ASM   // - GOES to HEX4
+
+	MOV R0,R4
+	//restoring value 
+    B PNUMBER     //normallay disaply numbers again
+	//MOV R0, R4
+	//restoring value 
+    //B PNUMBER
+	
+CLEAR_HEX4:
+
+
+	MOV R4,R0//temp store
+    MOV R0,#HEX4_NUM     //HEX4 bitmask
+    BL HEX_clear_ASM 
+	
+	
+	
+	//shud remove the -
+	MOV R0,R4//clears positive HEX4 
+	//get original number into R0 
+
+PNUMBER:
+    PUSH {R0-R5,LR}    //temp reg ---go over for consistentcy 
+    
+	
+    MOV R4,R0          // copied value to R2
+	//for algo
+    MOV R5,#1          // HEX display index 
+	//0 --> HEX0
+	//1 -->HEX1
+
+LOOPH:
+//UNESSARY CODE 
+
+
+
+  @  AND R1,R4,#0xF 
+	@BL DECIMALCONVERT// Extract least significant hex digit
+   @ MOV R0,R5          // Set HEX display index
+   @LDR R3,=calculator_stack 
+   @ BL HEX_WRITE_ASM    
+	@CMP R3
+   @ LSR R4 R4,#4 
+   //BLE FOR_UNDERFLOW 
+   //  right by 4 bits to get to next dig
+   @SUB RR8,#1
+   
+   @ LSL R5, R5,#1      
+   @ CMP #HEX4_NUM     
+   @SUB R88,#1
+   @ BLT LOOPH        
+
+
+
+
+
+    @POP {R0-R5,LR}    
+	@POP {LR}
+    @BX LR               // Return
+	BL DECIMALCONVERT  // MAKE SURE IN DECIMAL TO DISPLAY 
+    POP {R0-R5,LR}          //RESTORATION
+		
+	POP {R4,LR}
+    BX LR                     //gotta return
+DECIMALCONVERT:
+    PUSH {R0-R6,LR}    //reg savvvevevev
+    MOV R6,R0          
+	// preserving ro original 
+    MOV R5,#1          
+	// display HEX index starting at HEX0
+    MOV R4,#10 //need to deide to turn back into decimal 
+
+LOOP_FOR_DEC:
+    //CMP R6, #0
+    //BEQ DECIMAL    //if number is 0, have tp stop
+
+    PUSH {R4,R6,LR}  
+    BL DIVIDING 
+	
+	
+	
+	//branck link to call
+    POP {R4,R6,LR}   //making sure to restore registers after division
+
+    ADD R6,R1,#0          //number with quotient is updated 
+	//contained in R1 from DIVIDING 
+
+    MOV R1,R3          // VERIFYYYYY #########################
+    //BPL LOOP_FOR_DEC
+	MOV R0,R5
+	PUSH {LR}// 
+    BL HEX_WRITE_ASM  
+	
+	
+	
+	
+	//DEICMAL
+	//written to hex display 
+	POP {LR}//consistency
+    ADD R5,R5,R5 
+	
+	//moving up to next HEX position
+    //POP {LR} wrong spot go over 
+	CMP R5,#HEX3_NUM       //limir to 6 HEX displays
+	//compared to see with in range
+    //SUBS R5, R5, #HEX3_NUM
+	BGT DECIMAL    //stops if more than 6 digits
+
+    B LOOP_FOR_DEC      //continue getting next decimal digit
+	//going over again 
+DECIMAL:
+    POP {R0-R6,LR}  //double check 
+    BX LR              
+
+
+DIVIDING:
+    MOV R1,#0         //R1 store the quotient
+	//initialitze to 0 
+    MOV R2,R6         // Copy R6 to R2
+	//this is dividend
+
+DIVISIONLOOPED:
+	//PUSH {R5}
+    CMP R2,R4    
+	
+	//comparing dividend w divisor
+    BLT DONE_DIVIDING       // dividend less than divisor, 
+	//then it shud stop 
+    //MOV R5,#1 -- error code 
+	SUB R2,R2,R4  // sub divisrfrom dividend
+	
+	
+	
+	
+	
+	
+	
+	
+	
+    //compare to other 
+	ADD R1,R1,#1  // EASEIR WAYYYY
+    //POP {R5}
+	B DIVISIONLOOPED //repeat
+
+DONE_DIVIDING:
+    MOV R3, R2         // remainder = final value of R2
+    BX LR              //return
+
+ERROR:
+    PUSH {LR}
+	MOV R0,#FULL_DISPLAY //prep to clear
+    BL HEX_clear_ASM    // clear all HEXs
+	MOV R1,#HEX0DISP
+	
+	MOV R0,#1//error code loaded 
+	
+	BL HEX_WRITE_ASM  //get that to hex display 
+	
+	MOV R1,#ERROR_SYM //loading erorr symb
+	
+    MOV R0,#HEX0DISP     
+	//set index again
+                    
+    BL HEX_WRITE_ASM     //showing it the symbol
+    POP {LR}
+    BX LR
+	
+HEX_clear_ASM:
+    PUSH {LR}               
+    LDR R1,=HEX_DISP 
+	
+	
+	
+	
+	
+	
+	
+	//base addr HEX display reg
+    MOV R2,#HEX_NUM           //clear that display 
+
+
+
+LOOPED_CLEARED:
+    PUSH {R5}//R5 FOR TEMP
+    CMP R0,#0//SEE all HEX displays are gone through
+    BEQ CLEARED//no more displays need clearing =leave
+
+    AND R5,R0,#HEX0_NUM  //testing if hex0 is selected
+    
+	
+	CMP R5,#0      
+	//see result
+	
+	
+    BEQ JUMPHEX0  
+	//skips clearing if not set
+    STRB R2,[R1]  
+	//clears 
+JUMPHEX0:
+    AND R5,R0,#HEX1_NUM   //check if HEX1 is choosen
+	
+    CMP R5,#0   //comp w 0 to see if shud be cleared 
+    BEQ JUMPHEX1  
+	
+	//if hex1 not choose, go to next hex check
+    STRB R2,[R1,#HEX1_OFFSET]  
+	//clearing HEX1 DISP
+	
+JUMPHEX1:
+    AND R5,R0,#HEX2_NUM   //if hex2 selected
+    CMP R5, #0      
+	//always comp w 0 
+    BEQ JUMPHEX2     //ifnot move to next 
+    STRB R2,[R1,#HEX2_OFFSET] //clear hex2
+JUMPHEX2:
+  
+  	AND R5,R0,#HEX3_NUM   //if hex3selected
+    CMP R5,#0      
+	//SEE MORE EFFIEICENT WAY
+	
+	
+	
+	
+	
+	
+	
+	
+    BEQ JUMPHEX3     //jump next 
+    STRB R2,[R1,#HEX3_OFFSET]  //clear
+JUMPHEX3:
+    AND R5,R0,#HEX4_NUM  //if hex4selected
+    CMP R5,#0      
+	
+    BEQ JUMPHEX4   //move to next
+	
+	
+	
+	
+	
+    STRB R2,[R1,#HEX4_OFFSET]  //same
+JUMPHEX4:
+    AND R5,R0,#HEX5_NUM   //if hex5selected
+	
+	//anyway to minimzise redudncacy
+	//ask TAAA!!!!!!!!!!!!!!11
+	
+	
+	
+    CMP R5,#0   //see again 
+    BEQ JUMPHEX5         //move to next
+    STRB R2,[R1,#HEX5_OFFSET]  
+	//clears
+JUMPHEX5:
+
+CLEARED:
+    POP {R5}                // safety retsory
+    POP {LR}                // consistency 
+    BX LR                   // back to caller
+
+
+//drivers from prev taskssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+PB_edgecp_is_pressed_ASM:
+    PUSH {R5,LR}             
+    LDR R5,=PUSHBUTTON_EDGE  //addr of pbedge register
+    LDR R5,[R5]              
+	// get the value
+    AND R0,R5,R0            
+	//btwise AND with the specific button
+    CMP R0,#0                
+    // MOVEQR0,#0              
+	
+	// Otherwise, set R0 to 0
+	
+	MOVNE R0,#1              //ifnon-zero, set r0to 1
+    
+	//AND R0,R5,R0
+	MOVEQ R0,#0              // thenn, R0 to 0
+    POP {R5,LR}              // restoration
+    BX LR                     // Return that                 
+
+HEX_WRITE_ASM:
+	PUSH {R4,LR} 
+    //PUSH {R4,R5,LR}          
+    LDR R2,=HEX_TABLE 
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	//  address of the 7segm encoding table
+	//refer to at the top
+	//see if different formats
+
+    //CMP R1, #-1             //check if R1 contains -1 --> -
+	CMP R1,#HEX4_OFFSET  
+    BNE NUMBER_IN_RANGE 
+	//ifnot, proceed to normal digit encoding
+    //MOV R5, #16  
+	//ADD R2, R2, R5   
+
+
+//move base address forward by 16 bytes
+	ADD R2,R2,#16
+	
+	
+	LDRB R3,[R2]       // Load encoding for -
+    // @index 16
+	B ANSWER_SET           //jmp to display logic
+
+NUMBER_IN_RANGE://comparing with diff ways for prac
+    SUBS R1,R1,#MAX_VALID_DIGIT  //sbtract MAX_VALID_DIGIT, sets flags
+    BGT WRONG_DIGIT                
+	//if R1 >MAX_VALID_DIGIT, branch
+    ADD R1,R1,#MAX_VALID_DIGIT   //restore original R1 before loading
+    LDRB R3,[R2,R1]              //load byte from HEX table   
+ANSWER_SET:
+    LDR R4,=HEX_DISP       //load base addr of HEX displays
+	//ADD R4,R4, R0          // Use correct byteoffset addressing
+    //STRB R3,[R4,R0,LSL#2]  
+	//THISSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
+	
+
+
+write_loop:
+	PUSH {R5}
+    CMP R0,#0              //check if all selected HEX displays are processed
+    BEQ NO_WRITE            // if none --> exit
+
+    // Process HEX0
+    AND R5,R0,#HEX0_NUM   //perform bitwise AND to check if HEX0 is selected
+    CMP R5,#0              
+	//shud use varibale???
+  
+  
+  BEQ dontWrite0
+    STRB R3,[R4]           
+	//  endocded to hex 0
+dontWrite0:
+
+
+
+
+    // Process HEX1
+    AND R5,R0,#HEX1_NUM   // Perform bitwise AND to check if HEX1 is selected
+    CMP R5,#0   
+	
+	
+	
+	
+	// Compare with zero
+    BEQ dontWrite1
+    STRB R3,[R4,#HEX1_OFFSET]  // encoded to hex1
+dontWrite1:
+
+    //for hex2
+    AND R5,R0,#HEX2_NUM   //perform bitwise AND to check if HEX2 is selected
+    CMP R5,#0              
+	//var??
+    BEQ dontWrite2
+    STRB R3, [R4,#HEX2_OFFSET]  // encoded to hex2
+dontWrite2:
+    // Process HEX3
+    AND R5,R0,#HEX3_NUM   //perform bitwise AND to check if HEX3 is selected
+    CMP R5,#0     
+	
+	
+	
+	
+	
+	//compare with zero
+    BEQ dontWrite3
+    STRB R3,[R4,#HEX3_OFFSET] 
+	// encoded to hex3
+dontWrite3:
+    // Process HEX4
+    AND R5,R0,#HEX4_NUM   //perform bitwise AND to check if HEX4 is selected
+    CMP R5, #0              
+	//compare w zero
+    BEQ dontWrite4
+	
+	
+	
+	
+	
+	
+	
+    STRB R3, [R4,#HEX4_OFFSET]  // // encoded to hex4
+dontWrite4:
+    // Process HEX5
+    AND R5,R0,#HEX5_NUM   //just redundant atp
+	//see another way 
+	//ask TA graded on efficiency????????????????????????????????
+    CMP R5,#0             
+    BEQ dontWrite5
+    STRB R3,[R4,#HEX5_OFFSET]  //// encoded to hex5
+dontWrite5:
+	//anything/?
+NO_WRITE:
+	POP {R5}
+    POP {R4,LR}            // major restore b4 returning
+    BX LR                  
+
+WRONG_DIGIT:
+	
+    B NO_WRITE            //i digit is invalid, do nothing and exit
+
+PB_clear_edgecp_ASM:
+    PUSH {LR}
+    LDR R1,=PUSHBUTTON_EDGE    //add of PB edge reg
+    LDR R0,[R1]   
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	//current egecap regsiter value
+    STR R0,[R1]    //writing that valye
+    POP {LR}
+	
+	//count at the end to make sure
+    BX LR
+
+
+
+
+
+// your code ends here    
+// remember to copy and paste all the drivers/helper functions
+// you have written for the previous tasks here
+
