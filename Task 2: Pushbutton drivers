@@ -1,0 +1,296 @@
+@ task 2: pushbutton drivers
+.equ LED_ADDR, 0xFF200000
+
+// define any variables/memory space you need here
+// your code starts here
+
+//defining my varibales for easier readibility 
+
+.equ OUTPUT_LED, 0xFF200000
+//addr led contr
+.equ PUSHBUTTON_IN, 0xFF200050
+//ADDRE Pb rg
+.equ PUSHBUTTON_EDGE, 0xFF20005C
+//addr pb edgcap reg
+.equ SWITCH_INPUT, 0xFF200040
+//addr switch data reg
+.equ HEX_DISP, 0xFF200020
+//addr hex display
+
+
+
+
+
+
+//constant variables 
+.equ HEX_NUM,0x00 
+.equ HEX0_NUM,0x01
+.equ HEX1_NUM,0x02
+.equ HEX2_NUM,0x04
+.equ HEX3_NUM,0x08
+//all in da code
+.equ HEX4_NUM,0x10
+.equ HEX5_NUM,0x20
+
+.equ HEX1_OFFSET,0x01  
+//OFFS for HEX1
+.equ HEX2_OFFSET,0x02  
+//OFFS for HEX2
+.equ HEX3_OFFSET,0x03  
+//OFFS for HEX3
+.equ HEX4_OFFSET,0x10  
+//OFFS for HEX4 //16
+.equ HEX5_OFFSET,0x11  
+//OFFS for HEX5 (17 in dec)
+
+.equ ERROR_UNDERFLOW, 0xE0  //Err code for underflow
+.equ ERROR_OVERFLOW,  0xE1  //Errcode for overflow
+
+.equ HEX0DISP, 0x3F    //7-seg encoding for0
+//USEDONCE
+.equ ERROR_SYM,  0x71    //7-seg encoding for error E
+
+.equ MAX_VALID_DIGIT, 15 //to make easeir               
+
+.equ FULL_DISPLAY, 0b111111
+
+HEX_TABLE:
+    .byte 0x3F, 0x06, 0x5B, 0x4F  //refer w TA
+    .byte 0x66, 0x6D, 0x7D, 0x07  
+    .byte 0x7F, 0x6F, 0x77, 0x7C 
+	//can format flexible?
+    .byte 0x39, 0x5E, 0x79, 0x71  
+    .byte 0x40, 0x00, 0x00, 0x00  
+
+//STCK_PTR: .word calculator_stack  //initi SP to  start of the calc stack
+
+
+
+
+.equ PB_DATA, 0xFF200050   // Pushbutton Data Register
+.equ PB_EDGECP, 0xFF20005C // Pushbutton Edge Capture Register
+	
+	
+// your code ends here
+
+.global _start
+_start:
+
+// test case #1: is data pressed on selected PBs?
+// we only check PB 0,1,3 (PB 2 is ignored)
+test_case_1:
+    MOV R5, #0
+    
+    // check PB 0
+    MOV R0, #0x1
+    BL    PB_data_is_pressed_ASM
+    EOR    R5, R0
+    
+    // check PB 1
+    MOV R0, #0x2
+    BL    PB_data_is_pressed_ASM
+    LSL R0, #1
+    EOR    R5, R0
+    
+    // check PB 3
+    MOV R0, #0x8
+    BL    PB_data_is_pressed_ASM
+    LSL R0, #3
+    EOR    R5, R0
+    
+// write the results to LEDs
+    MOV R0, R5
+    BL    write_LEDs_ASM
+    B    test_case_1    // comment this instruction out to move to test case #2
+
+// test case #2: is edgecapture pressed? (without PB clear)
+test_case_2:
+    BL    PB_clear_edgecp_ASM   // only clear the edgecapture here
+
+test_loop_2:
+    MOV R5, #0  // holding the state of LEDs
+
+    // check PB 0
+    MOV R0, #0x1
+    BL    PB_edgecp_is_pressed_ASM
+    EOR    R5, R0
+    
+    // check PB 1
+    MOV R0, #0x2
+    BL    PB_edgecp_is_pressed_ASM
+    LSL R0, #1
+    EOR    R5, R0
+    
+    // check PB 2
+    MOV R0, #0x4
+    BL    PB_edgecp_is_pressed_ASM
+    LSL R0, #2
+    EOR    R5, R0
+    
+    // check PB 3
+    MOV R0, #0x8
+    BL    PB_edgecp_is_pressed_ASM
+    LSL R0, #3
+    EOR    R5, R0
+    
+    // write the results to LEDs
+    MOV R0, R5
+    BL    write_LEDs_ASM
+    B    test_loop_2 // comment this instruction out to move to test case #3
+
+// test case #3: is edgecapture pressed? (with PB clear)
+test_case_3:
+    BL        PB_clear_edgecp_ASM
+
+    MOV     R5, #0  // holding the status of LEDs
+    
+test_loop_3:
+    
+    // check PB 0
+    MOV     R0, #0x1
+    BL        PB_edgecp_is_pressed_ASM
+    CMP     R0, #1
+    EOREQ     R5, #0x1  // flip the corresponding LEDs if PB 0 is released
+    BLEQ    PB_clear_edgecp_ASM
+    
+    // check PB 1
+    MOV     R0, #0x2
+    BL        PB_edgecp_is_pressed_ASM
+    CMP     R0, #1
+    EOREQ     R5, #0x2  // flip the corresponding LEDs if PB 1 is released
+    BLEQ    PB_clear_edgecp_ASM
+    
+    // check PB 2
+    MOV     R0, #0x4
+    BL        PB_edgecp_is_pressed_ASM
+    CMP     R0, #1
+    EOREQ     R5, #0x4 // flip the corresponding LEDs if PB 2 is released
+    BLEQ    PB_clear_edgecp_ASM
+    
+    // check PB 3
+    MOV     R0, #0x8
+    BL        PB_edgecp_is_pressed_ASM
+    CMP     R0, #1
+    EOREQ     R5, #0x8 // flip the corresponding LEDs if PB 3 is released
+    BLEQ     PB_clear_edgecp_ASM
+    
+    // write the results to LEDs
+    MOV     R0, R5
+    BL        write_LEDs_ASM
+    
+    B       test_loop_3
+
+end:
+    B   end
+
+// LEDs Driver
+// writes the state of LEDs (On/Off) in A1 to the LEDs' control register
+// pre-- A1: data to write to LED state
+write_LEDs_ASM:
+    LDR A2, =LED_ADDR    // load the address of the LEDs' state
+    STR A1, [A2]         // update LED state with the contents of A1
+    BX  LR
+    
+
+// ===================================  drivers  ========================================
+
+read_PB_data_ASM: 
+	// your code starts here
+
+	LDR R1,=PB_DATA       // Load the address of the pushbutton data register
+    LDR R0, [R1]           // Read the current state of pushbuttons
+    BX  LR                 // Return to caller
+	
+	
+    // your code ends here
+
+PB_data_is_pressed_ASM:
+	// your code starts here
+
+	PUSH {R5,LR}             
+    LDR R5,=PB_DATA  //addr of pbedge register
+    LDR R5,[R5]              
+	// get the value
+    AND R0,R5,R0            
+	//btwise AND with the specific button
+    CMP R0,#0                
+    // MOVEQR0,#0              
+	
+	// Otherwise, set R0 to 0
+	
+	MOVNE R0,#1              //ifnon-zero, set r0to 1
+    
+	//AND R0,R5,R0
+	MOVEQ R0,#0              // thenn, R0 to 0
+    POP {R5,LR}              // restoration
+    BX LR                     // Return that    
+	
+	
+    // your code ends here
+
+read_PB_edgecp_ASM:
+	// your code starts here
+
+	PUSH {LR}
+    LDR R0,=SWITCH_INPUT     //r0 getss address first
+    LDR R1,[R0]              //putting swithc val into R1 to get value 
+    SXTB R0,R1               //sign extension
+	//see again other variants 
+    POP {LR}
+    BX LR
+	
+    // your code ends here
+	
+PB_edgecp_is_pressed_ASM:
+	// your code starts here
+
+	PUSH {R5,LR}             
+    LDR R5,=PUSHBUTTON_EDGE  //addr of pbedge register
+    LDR R5,[R5]              
+	// get the value
+    AND R0,R5,R0            
+	//btwise AND with the specific button
+    CMP R0,#0                
+    // MOVEQR0,#0              
+	
+	// Otherwise, set R0 to 0
+	
+	MOVNE R0,#1              //ifnon-zero, set r0to 1
+    
+	//AND R0,R5,R0
+	MOVEQ R0,#0              // thenn, R0 to 0
+    POP {R5,LR}              // restoration
+    BX LR                     // Return that    
+	
+	
+    // your code ends here
+	
+PB_clear_edgecp_ASM:
+	// your code starts here
+	
+	PUSH {LR}
+    LDR R1,=PUSHBUTTON_EDGE    //add of PB edge reg
+    LDR R0,[R1]   
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	//current egecap regsiter value
+    STR R0,[R1]    //writing that valye
+    POP {LR}
+	
+	//count at the end to make sure
+    BX LR
+
+// ===================================  driver helpers  ========================================
+// you can define any additional subroutines in this area
+
+
+    // your code ends here
+    
